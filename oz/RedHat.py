@@ -814,6 +814,20 @@ class RedHatLinuxCDYumGuest(RedHatLinuxCDGuest):
 
     def _install_packages(self, guestaddr, packstr):
         if self.use_yum:
+            # If passed in multiple packages, yum will still return a zero even if
+            # some of packages were not available for install. It seems the only
+            # safe way to check is to do a yum provides on each package.
+            missing_packages = []
+            for package in packstr.split():
+                # Verify each package is available
+                try:
+                    self.guest_execute_command(guestaddr, 'yum provides %s' % package)
+                except oz.ozutil.SubprocessException:
+                    missing_packages.append(package)
+            if missing_packages:
+                raise oz.OzException.OzException(
+                    'Failed to find packages: %s' % ' '.join(missing_packages)
+            )
             self.guest_execute_command(guestaddr, 'yum -y install %s' % (packstr))
         else:
             self.guest_execute_command(guestaddr, 'dnf -y install %s' % (packstr))
